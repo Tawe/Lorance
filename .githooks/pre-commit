@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Block commits that include common secret patterns in tracked changes
+PATTERNS=(
+  "BEGIN PRIVATE KEY"
+  "PRIVATE KEY-----"
+  "ALGOLIA_ADMIN_KEY="
+  "FIREBASE_PRIVATE_KEY="
+  "GOOGLE_APPLICATION_CREDENTIALS="
+  "AWS_SECRET_ACCESS_KEY"
+  "GCP_SERVICE_ACCOUNT"
+  "GITHUB_TOKEN"
+  "SLACK_BOT_TOKEN"
+  "SENTRY_AUTH_TOKEN"
+  "STRIPE_SECRET_KEY"
+  "TWILIO_AUTH_TOKEN"
+)
+
+DIFF=$(git diff --cached -U0)
+
+for pat in "${PATTERNS[@]}"; do
+  if echo "$DIFF" | grep -n "$pat" >/dev/null; then
+    echo "pre-commit: blocked by secret pattern: $pat" >&2
+    exit 1
+  fi
+ done
+
+# Block committing known secret files if they ever get staged
+BLOCKED_FILES=(
+  "backend/.env"
+  "frontend/.env.local"
+  "lorance-1e920-firebase-adminsdk-fbsvc-7c64021090.json"
+)
+
+for f in "${BLOCKED_FILES[@]}"; do
+  if git diff --cached --name-only | grep -x "$f" >/dev/null; then
+    echo "pre-commit: blocked file staged: $f" >&2
+    exit 1
+  fi
+ done
+
+exit 0
