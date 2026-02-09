@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Sparkles, User } from 'lucide-react';
 import { WorkspaceService } from '@/services/workspaceService';
 import { DocumentIntelService } from '@/services/documentIntelService';
-import { SearchResult, StructuredAnswer, Ticket, TicketRecord } from '@/types';
+import { DocumentChunk, SearchResult, StructuredAnswer, Ticket, TicketRecord } from '@/types';
 import DocumentPanel from './DocumentPanel';
 import SearchResultsPanel from './SearchResultsPanel';
 import AnswerPanel from './AnswerPanel';
