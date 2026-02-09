@@ -18,6 +18,25 @@ PATTERNS=(
 )
 
 DIFF=$(git diff --cached -U0)
+FILES=$(git diff --cached --name-only)
+
+# Allowlist files that may legitimately mention example keys
+ALLOWLIST_FILES=(
+  "README.md"
+  ".env.example"
+  "frontend/.env.local.example"
+)
+
+for f in "${ALLOWLIST_FILES[@]}"; do
+  if echo "$FILES" | grep -x "$f" >/dev/null; then
+    # Remove hunks for allowlisted files from the diff scan
+    DIFF=$(printf "%s\n" "$DIFF" | awk -v file="a/$f" '
+      BEGIN {skip=0}
+      /^diff --git / {skip=($3==file); next}
+      skip==0 {print}
+    ')
+  fi
+done
 
 for pat in "${PATTERNS[@]}"; do
   if echo "$DIFF" | grep -n "$pat" >/dev/null; then

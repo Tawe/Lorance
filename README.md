@@ -1,20 +1,20 @@
-# Lorance - Action Clarity Agent
+# Lorance - Project Intelligence Agent
 
-Turn messy conversations into clear next steps.
+Turn messy project docs into grounded answers and actionable tickets.
 
 ---
 
 ## Overview
 
-Lorance is an AI-powered agent that extracts actionable work items from unstructured text like meeting notes, emails, and chat conversations. It helps teams answer: "What do I actually need to do?"
+Lorance is an AI-powered project intelligence assistant that reads unstructured project documents (PRDs, meeting notes, emails, chat) and returns grounded answers, decisions, and ticket-ready work items.
 
 ## Features
 
-- **Document Indexing** - Add meeting notes, emails, chats with metadata
-- **Action Extraction** - Identifies explicit and implied actions
-- **Confidence Scoring** - Visual indicators for action reliability
-- **Owner Inference** - Suggests who should own each action
-- **Source Citation** - Every action references its source material
+- **Document Indexing** - Upload and index project documents with metadata
+- **Question Answering** - Ask questions grounded in your documents
+- **Ticket Generation** - Create structured tickets with acceptance criteria
+- **Editing** - Edit documents and tickets in-place
+- **Workspace Isolation** - Each doc/ticket is scoped to a user workspace
 
 ---
 
@@ -25,7 +25,7 @@ Lorance is an AI-powered agent that extracts actionable work items from unstruct
 ```bash
 # Backend
 cp .env.example backend/.env
-# Edit backend/.env with your Algolia credentials
+# Edit backend/.env with your Algolia + Firebase credentials
 
 # Frontend
 cp .env.example frontend/.env.local
@@ -59,18 +59,6 @@ cd frontend && npm run dev
 
 ---
 
-## Demo Data
-
-Use the `demo-data.md` file to test the system:
-
-1. Open the frontend and click **Add document**
-2. Select a source type (Meeting Notes, Email, Chat, Ticket)
-3. Paste content from `demo-data.md`
-4. Click **Index Document**
-5. Search with queries like "what needs to be done"
-
----
-
 ## Architecture
 
 ```
@@ -79,7 +67,7 @@ Lorance/
 │   └── src/
 │       ├── index.ts   # Server, routes, validation
 │       ├── algolia.ts # Algolia service (v5 API)
-│       └── agent.ts   # Action extraction logic
+│       └── agents/    # Agent Studio prompt + parsing
 ├── frontend/          # Next.js 16 + TypeScript
 │   └── src/
 │       ├── components/  # React components
@@ -95,9 +83,15 @@ Lorance/
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/health` | Health check |
-| POST | `/api/documents` | Index a new document |
-| POST | `/api/extract-actions` | Extract actions from indexed docs |
-| GET | `/api/documents/search?q=` | Search indexed documents |
+| GET | `/api/intel/search?q=` | Search documents/tickets |
+| POST | `/api/intel/answer` | Generate structured answer |
+| POST | `/api/intel/documents` | Index document chunks |
+| PUT | `/api/intel/document` | Update a document |
+| DELETE | `/api/intel/document` | Delete a document |
+| POST | `/api/intel/tickets` | Index tickets |
+| DELETE | `/api/intel/ticket` | Delete a ticket |
+| GET | `/api/intel/filters` | Filter options |
+| GET | `/api/auth/algolia-key` | Secured Algolia key (auth) |
 
 ---
 
@@ -109,12 +103,22 @@ Lorance/
 # Required
 ALGOLIA_APP_ID=your_app_id
 ALGOLIA_ADMIN_KEY=your_admin_key
+ALGOLIA_SEARCH_KEY=your_search_only_key
+ALGOLIA_AGENT_ID=your_agent_id
 
 # Optional
-ALGOLIA_INDEX_NAME=lorance_actions  # defaults to lorance_actions
-PORT=3001                            # defaults to 3001
+ALGOLIA_DOCS_INDEX_NAME=lorance_documents
+ALGOLIA_TICKETS_INDEX_NAME=lorance_tickets
+PORT=3001
 ALLOWED_ORIGINS=http://localhost:3000,https://your-domain.com
 NODE_ENV=development
+
+# Firebase Admin (choose ONE option)
+GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
+# OR
+FIREBASE_PROJECT_ID=your_project_id
+FIREBASE_CLIENT_EMAIL=your_client_email
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 ```
 
 ### Frontend (`frontend/.env.local`)
@@ -123,41 +127,14 @@ NODE_ENV=development
 NEXT_PUBLIC_API_URL=http://localhost:3001
 ```
 
----
-
-## Action Types
-
-| Type | Description | Example |
-|------|-------------|---------|
-| **Explicit** | Clearly stated tasks | "I will update the docs" |
-| **Implied** | Inferred obligations | "We need better filtering" |
-
----
-
 ## Security
 
 - CORS restricted to configured origins
 - Input validation on all endpoints
-- Content length limits (50KB max)
-- Query length limits (500 chars)
-- Cryptographically secure document IDs
+- Content length limits
+- Query length limits
 - Environment validation on startup
-
----
-
-## Challenge Compliance
-
-See `CHALLENGE_CHECKLIST.md` for detailed steps to meet the Algolia Agent Studio Challenge requirements.
-
-**Current Status:**
-- Algolia Search Integration
-- Custom Action Extraction Agent
-- Input Validation & Security Hardening
-
-**Remaining:**
-- Agent Studio Integration
-- Deployment
-- Challenge Submission
+- Workspace isolation via `workspace_id` (scopes docs/tickets)
 
 ---
 
