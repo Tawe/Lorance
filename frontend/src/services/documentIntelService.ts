@@ -44,7 +44,8 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 }
 
 export class DocumentIntelService {
-  private static readonly API_URL = 'http://localhost:3001';
+  private static readonly API_URL =
+    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
   /**
     * Search across documents and tickets with filters
