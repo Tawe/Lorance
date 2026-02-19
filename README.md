@@ -6,15 +6,24 @@ Turn messy project docs into grounded answers and actionable tickets.
 
 ## Overview
 
-Lorance is an AI-powered project intelligence assistant that reads unstructured project documents (PRDs, meeting notes, emails, chat) and returns grounded answers, decisions, and ticket-ready work items.
+Lorance is an AI-powered project intelligence assistant that reads unstructured project documents (PRDs, meeting notes, emails, chat) and returns grounded answers, decisions, and ticket-ready work items — all scoped to your workspace.
 
 ## Features
 
-- **Document Indexing** - Upload and index project documents with metadata
-- **Question Answering** - Ask questions grounded in your documents
-- **Ticket Generation** - Create structured tickets with acceptance criteria
-- **Editing** - Edit documents and tickets in-place
-- **Workspace Isolation** - Each doc/ticket is scoped to a user workspace
+- **Document Indexing** — Upload and index project documents with metadata
+- **Question Answering** — Ask questions grounded in your documents via Algolia Agent Studio
+- **Ticket Generation** — Create structured tickets with acceptance criteria, citations, and effort estimates
+- **Ticket Validation** — AI-generated tickets are automatically validated and repaired before being surfaced
+- **Export** — Push tickets to Linear, Jira, or GitHub Issues
+- **Firebase Authentication** — User sign-in with workspace isolation per user
+- **Workspace Isolation** — Every doc and ticket is scoped to a `workspace_id`
+
+---
+
+## Two UIs
+
+- **DocumentIntel** (`/`) — Document upload, search, and Q&A with structured answers
+- **ArchitectPanel** (`/architect`) — Ticket generation and management with export integrations
 
 ---
 
@@ -25,37 +34,41 @@ Lorance is an AI-powered project intelligence assistant that reads unstructured 
 ```bash
 # Backend
 cp .env.example backend/.env
-# Edit backend/.env with your Algolia + Firebase credentials
+# Edit backend/.env — fill in Algolia + Firebase Admin credentials
 
 # Frontend
-cp .env.example frontend/.env.local
-# Edit frontend/.env.local with your API URL
+cp frontend/.env.local.example frontend/.env.local
+# Edit frontend/.env.local — fill in Firebase client SDK credentials
 ```
 
 ### 2. Install Dependencies
 
 ```bash
-# Frontend
-cd frontend && npm install
-
-# Backend
 cd backend && npm install
+cd frontend && npm install
 ```
 
-### 3. Start Development
+### 3. Enable Pre-commit Hook
 
 ```bash
-# Start backend (Terminal 1)
-cd backend && npm run dev
-
-# Start frontend (Terminal 2)
-cd frontend && npm run dev
+git config core.hooksPath .githooks
 ```
 
-### 4. Access the App
+### 4. Start Development
 
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:3001
+```bash
+# Backend (Terminal 1)
+cd backend && npm run dev     # http://localhost:3001
+
+# Frontend (Terminal 2)
+cd frontend && npm run dev    # http://localhost:3000
+```
+
+Or with Docker:
+
+```bash
+docker-compose up
+```
 
 ---
 
@@ -63,35 +76,70 @@ cd frontend && npm run dev
 
 ```
 Lorance/
-├── backend/           # Express + TypeScript API
+├── backend/                   # Express 5 + ts-node API
 │   └── src/
-│       ├── index.ts   # Server, routes, validation
-│       ├── algolia.ts # Algolia service (v5 API)
-│       └── agents/    # Agent Studio prompt + parsing
-├── frontend/          # Next.js 16 + TypeScript
+│       ├── index.ts           # Server, Architect panel routes, validation
+│       ├── routes/            # DocumentIntel route declarations
+│       ├── controllers/       # DocumentIntel route handlers
+│       ├── agents/            # DocumentIntelAgent (prompt, parse, validate)
+│       ├── ticketValidator.ts # Ticket quality gate (validate + repair)
+│       ├── algolia.ts         # AlgoliaService (search, indexing)
+│       ├── security.ts        # AlgoliaSecurityService (secured keys, ownership)
+│       ├── auth.ts            # FirebaseAuthService (token verification)
+│       ├── agent-studio.ts    # AgentStudioService (LLM completions)
+│       ├── exports/           # Linear, Jira, GitHub export integrations
+│       └── types/             # Server-side TypeScript types
+├── frontend/                  # Next.js 16 + React 19 + Tailwind CSS v4
 │   └── src/
-│       ├── components/  # React components
-│       ├── services/    # API client
-│       └── types/       # TypeScript interfaces
-└── .env.example       # Environment template
+│       ├── components/        # DocumentIntel, ArchitectPanel, modals, panels
+│       ├── services/          # API clients, auth, workspace management
+│       └── types/             # Client-side TypeScript types
+├── shared/
+│   └── types.ts               # Shared types used by frontend and backend
+└── .env.example               # Backend environment template
 ```
+
+**Frontend proxies** `/api/*` to `http://localhost:3001` via Next.js rewrites.
 
 ---
 
 ## API Endpoints
 
+All endpoints require Firebase auth (`Authorization: Bearer <token>`).
+
+### DocumentIntel (`/api/intel/*`) — also require `X-Workspace-ID` header
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/health` | Health check |
-| GET | `/api/intel/search?q=` | Search documents/tickets |
-| POST | `/api/intel/answer` | Generate structured answer |
+| GET | `/api/intel/search?q=` | Search documents and tickets |
+| POST | `/api/intel/answer` | Generate structured answer via Agent Studio |
 | POST | `/api/intel/documents` | Index document chunks |
 | PUT | `/api/intel/document` | Update a document |
 | DELETE | `/api/intel/document` | Delete a document |
 | POST | `/api/intel/tickets` | Index tickets |
 | DELETE | `/api/intel/ticket` | Delete a ticket |
 | GET | `/api/intel/filters` | Filter options |
-| GET | `/api/auth/algolia-key` | Secured Algolia key (auth) |
+| POST | `/api/intel/clear` | Clear workspace |
+
+### Architect Panel
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/docs` | Index a project document |
+| GET | `/api/docs` | Get all documents (workspace-scoped) |
+| GET | `/api/docs/search?q=` | Search documents |
+| POST | `/api/generate-tickets` | Generate tickets via Agent Studio |
+| POST | `/api/export/linear` | Export tickets to Linear |
+| POST | `/api/export/jira` | Export tickets to Jira |
+| POST | `/api/export/github` | Export tickets to GitHub Issues |
+
+### Auth
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/health` | Health check (no auth required) |
+| GET | `/api/auth/algolia-key` | Get secured Algolia key for client-side search |
+| GET | `/api/auth/me` | Get current user info and workspace_id |
 
 ---
 
@@ -103,19 +151,18 @@ Lorance/
 # Required
 ALGOLIA_APP_ID=your_app_id
 ALGOLIA_ADMIN_KEY=your_admin_key
-ALGOLIA_SEARCH_KEY=your_search_only_key
-ALGOLIA_AGENT_ID=your_agent_id
 
 # Optional
 ALGOLIA_DOCS_INDEX_NAME=lorance_documents
 ALGOLIA_TICKETS_INDEX_NAME=lorance_tickets
+ALGOLIA_AGENT_ID=your_agent_id        # Enables Agent Studio AI features
 PORT=3001
 ALLOWED_ORIGINS=http://localhost:3000,https://your-domain.com
 NODE_ENV=development
 
 # Firebase Admin (choose ONE option)
 GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
-# OR
+# OR inline credentials:
 FIREBASE_PROJECT_ID=your_project_id
 FIREBASE_CLIENT_EMAIL=your_client_email
 FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
@@ -125,38 +172,30 @@ FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY----
 
 ```bash
 NEXT_PUBLIC_API_URL=http://localhost:3001
+
+# Firebase client SDK
+NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_firebase_project_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=123456789
+NEXT_PUBLIC_FIREBASE_APP_ID=1:123456789:web:abcdef123456
 ```
-
-## Security
-
-- CORS restricted to configured origins
-- Input validation on all endpoints
-- Content length limits
-- Query length limits
-- Environment validation on startup
-- Workspace isolation via `workspace_id` (scopes docs/tickets)
 
 ---
 
 ## Development
 
-### Type Checking
-
 ```bash
-# Backend
+# Type check
 cd backend && npx tsc --noEmit
-
-# Frontend
 cd frontend && npx tsc --noEmit
-```
 
-### Building for Production
+# Lint
+cd frontend && npm run lint
 
-```bash
-# Backend
+# Production build
 cd backend && npm run build
-
-# Frontend
 cd frontend && npm run build
 ```
 

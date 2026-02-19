@@ -1,0 +1,11 @@
+{
+  "name": "lorance",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "ai:sync": "node scripts/ai-sync.mjs",
+    "ai:check": "node scripts/ai-sync.mjs --check",
+    "ai:watch": "node scripts/ai-watch.mjs"
+  }
+}

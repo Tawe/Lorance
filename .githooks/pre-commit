@@ -59,4 +59,11 @@ for f in "${BLOCKED_FILES[@]}"; do
   fi
  done
 
+# Auto-sync AI instruction files if .ai/INSTRUCTIONS.md was staged
+if git diff --cached --name-only | grep -q "^\.ai/INSTRUCTIONS\.md$"; then
+  echo "pre-commit: syncing AI instruction files..."
+  node scripts/ai-sync.mjs
+  git add CLAUDE.md GEMINI.md AGENTS.md .github/copilot-instructions.md
+fi
+
 exit 0

@@ -16,6 +16,7 @@ dist/
 build/
 .next/
 out/
+shared/*.js
 
 # IDE
 .idea/
@@ -43,3 +44,7 @@ coverage/
 # Misc
 .vercel
 .turbo
+
+# AI instruction files are auto-generated from .ai/INSTRUCTIONS.md
+# Run: npm run ai:sync
+# They are committed to the repo so each AI tool can find its file.
