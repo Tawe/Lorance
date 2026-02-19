@@ -307,8 +307,10 @@ export default function DocumentPanel({ onSearch, onRefresh, results, isLoading,
               <div className="p-4 border-b border-gray-200 flex items-center justify-between">
                 <h3 className="font-semibold text-gray-900">Add Document</h3>
                 <button
+                  type="button"
                   onClick={() => setShowUpload(false)}
-                  className="p-1 text-gray-400 hover:text-gray-600 rounded"
+                  className="p-1 text-gray-400 hover:text-gray-600 rounded cursor-pointer"
+                  aria-label="Close"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -367,8 +369,9 @@ export default function DocumentPanel({ onSearch, onRefresh, results, isLoading,
                     )}
                   </button>
                   <button
+                    type="button"
                     onClick={() => setShowUpload(false)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium"
+                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-700 cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -394,8 +397,10 @@ export default function DocumentPanel({ onSearch, onRefresh, results, isLoading,
               <div className="p-4 border-b border-gray-200 flex items-center justify-between">
                 <h3 className="font-semibold text-gray-900">Edit Document</h3>
                 <button
+                  type="button"
                   onClick={() => setEditingDoc(null)}
-                  className="p-1 text-gray-400 hover:text-gray-600 rounded"
+                  className="p-1 text-gray-400 hover:text-gray-600 rounded cursor-pointer"
+                  aria-label="Close"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -433,22 +438,24 @@ export default function DocumentPanel({ onSearch, onRefresh, results, isLoading,
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm resize-none text-gray-900 placeholder:text-gray-400"
                   />
                 </div>
-                <div className="flex items-center justify-end gap-2">
+                <div className="flex gap-2">
                   <button
-                    onClick={() => setEditingDoc(null)}
-                    className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 rounded-lg hover:bg-gray-100 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
+                    type="button"
                     onClick={handleSaveEdit}
                     disabled={isSavingEdit}
-                    className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium cursor-pointer"
                   >
                     {isSavingEdit && (
                       <div className="w-4 h-4 border-2 border-white border-t-transparent animate-spin rounded-full" />
                     )}
                     {isSavingEdit ? 'Saving...' : 'Save Changes'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingDoc(null)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-700 cursor-pointer"
+                  >
+                    Cancel
                   </button>
                 </div>
               </div>
