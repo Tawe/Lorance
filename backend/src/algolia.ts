@@ -8,7 +8,7 @@ import { ProjectDocument, Ticket } from './types';
 const ALGOLIA_CONFIG = {
   docsIndexName: 'lorance_documents',
   ticketsIndexName: 'lorance_tickets',
-  defaultHitsPerPage: 100,
+  defaultHitsPerPage: 1000,
 } as const;
 
 // =============================================================================
@@ -73,9 +73,10 @@ export class AlgoliaService {
     });
   }
 
-  async searchDocuments(query: string, docType?: ProjectDocument['doc_type']): Promise<ProjectDocument[]> {
+  async searchDocuments(query: string, docType?: ProjectDocument['doc_type'], workspaceId?: string): Promise<ProjectDocument[]> {
     const filters = docType ? `doc_type:${docType}` : '';
-    console.log('[Algolia] Searching documents with query:', query, 'filters:', filters);
+    const facetFilters = workspaceId ? [`workspace_id:${workspaceId}`] : undefined;
+    console.log('[Algolia] Searching documents with query:', query, 'filters:', filters, 'workspace:', workspaceId);
 
     try {
       const results = await this.client.search({
@@ -84,6 +85,7 @@ export class AlgoliaService {
             indexName: this.docsIndexName,
             query,
             filters,
+            facetFilters,
             hitsPerPage: ALGOLIA_CONFIG.defaultHitsPerPage,
           },
         ],
@@ -102,12 +104,14 @@ export class AlgoliaService {
     }
   }
 
-  async getAllDocuments(): Promise<ProjectDocument[]> {
+  async getAllDocuments(workspaceId?: string): Promise<ProjectDocument[]> {
+    const facetFilters = workspaceId ? [`workspace_id:${workspaceId}`] : undefined;
     const results = await this.client.search({
       requests: [
         {
           indexName: this.docsIndexName,
           query: '',
+          facetFilters,
           hitsPerPage: ALGOLIA_CONFIG.defaultHitsPerPage,
         },
       ],
@@ -142,7 +146,7 @@ export class AlgoliaService {
   /**
    * Get a specific document by ID
    */
-  async getDocument(objectID: string): Promise<any> {
+  async getDocument(objectID: string): Promise<ProjectDocument | null> {
     try {
       const results = await this.client.getObjects({
         requests: [
@@ -152,7 +156,7 @@ export class AlgoliaService {
           },
         ],
       });
-      return results.results[0];
+      return (results.results[0] as ProjectDocument) ?? null;
     } catch (error) {
       return null;
     }
@@ -226,12 +230,14 @@ export class AlgoliaService {
     );
   }
 
-  async searchTickets(query: string): Promise<Ticket[]> {
+  async searchTickets(query: string, workspaceId?: string): Promise<Ticket[]> {
+    const facetFilters = workspaceId ? [`workspace_id:${workspaceId}`] : undefined;
     const results = await this.client.search({
       requests: [
         {
           indexName: this.ticketsIndexName,
           query,
+          facetFilters,
           hitsPerPage: ALGOLIA_CONFIG.defaultHitsPerPage,
         },
       ],
@@ -247,7 +253,7 @@ export class AlgoliaService {
   /**
    * Get a specific ticket by ID
    */
-  async getTicket(objectID: string): Promise<any> {
+  async getTicket(objectID: string): Promise<Ticket | null> {
     try {
       const results = await this.client.getObjects({
         requests: [
@@ -257,7 +263,7 @@ export class AlgoliaService {
           },
         ],
       });
-      return results.results[0];
+      return (results.results[0] as unknown as Ticket) ?? null;
     } catch (error) {
       return null;
     }

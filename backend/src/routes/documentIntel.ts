@@ -1,5 +1,15 @@
 import { DocumentIntelController } from '../controllers/documentIntel';
 import { FirebaseAuthService } from '../auth';
+import rateLimit from 'express-rate-limit';
+
+const llmRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  keyGenerator: (req) => (req as any).user?.uid ?? 'unauthenticated',
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again in a minute.' },
+});
 
 // =============================================================================
 // Document Intelligence Routes (All require authentication)
@@ -10,7 +20,7 @@ export function setupDocumentIntelRoutes(app: any) {
   app.get('/api/intel/search', FirebaseAuthService.requireAuth, DocumentIntelController.search);
 
   // Generate structured answer
-  app.post('/api/intel/answer', FirebaseAuthService.requireAuth, DocumentIntelController.getAnswer);
+  app.post('/api/intel/answer', FirebaseAuthService.requireAuth, llmRateLimit, DocumentIntelController.getAnswer);
 
   // Index document chunks
   app.post('/api/intel/documents', FirebaseAuthService.requireAuth, DocumentIntelController.indexDocuments);

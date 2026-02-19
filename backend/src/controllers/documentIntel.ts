@@ -52,48 +52,22 @@ export class DocumentIntelController {
       const minConf = confidence_min ? Number(confidence_min) : null;
       const maxConf = confidence_max ? Number(confidence_max) : null;
 
-      // Search both indices
+      // Search both indices — workspace_id enforced at Algolia query level
       const [docsResults, ticketsResults] = await Promise.all([
-        algoliaService.searchDocuments(queryStr, undefined),
-        algoliaService.searchTickets(queryStr),
+        algoliaService.searchDocuments(queryStr, undefined, workspace_id),
+        algoliaService.searchTickets(queryStr, workspace_id),
       ]);
-      
 
+      const filteredDocs = (docsResults as any[]).filter(doc =>
+        !parsedSourceTypes || parsedSourceTypes.includes(doc.source_type || doc.doc_type)
+      );
 
-
-      // Filter by workspace_id (server-enforced) and other criteria
-      // Handle both cases: with and without user_ prefix
-      const userWorkspaceId = `user_${workspace_id}`;
-
-      
-      const filteredDocs = (docsResults as any[]).filter(doc => {
-        // Match: exact match, with user_ prefix, or just the uid part
-        const docWorkspace = doc.workspace_id || '';
-        const isMatch = 
-          docWorkspace === workspace_id || 
-          docWorkspace === userWorkspaceId ||
-          docWorkspace === `user_${workspace_id}` ||
-          docWorkspace === workspace_id.replace(/^user_/, '');
-        
-
-        return isMatch && (!parsedSourceTypes || parsedSourceTypes.includes(doc.source_type || doc.doc_type));
-      });
-
-
-
-      const filteredTickets = (ticketsResults as any[]).filter(ticket => {
-        const ticketWorkspace = ticket.workspace_id || '';
-        return (
-          (ticketWorkspace === workspace_id || 
-           ticketWorkspace === userWorkspaceId ||
-           ticketWorkspace === `user_${workspace_id}` ||
-           ticketWorkspace === workspace_id.replace(/^user_/, '')) &&
-          (!parsedTicketTypes || parsedTicketTypes.includes(ticket.type)) &&
-          (!parsedStatuses || parsedStatuses.includes(ticket.readiness)) &&
-          (minConf === null || ticket.confidence >= minConf) &&
-          (maxConf === null || ticket.confidence <= maxConf)
-        );
-      });
+      const filteredTickets = (ticketsResults as any[]).filter(ticket =>
+        (!parsedTicketTypes || parsedTicketTypes.includes(ticket.type)) &&
+        (!parsedStatuses || parsedStatuses.includes(ticket.readiness)) &&
+        (minConf === null || ticket.confidence >= minConf) &&
+        (maxConf === null || ticket.confidence <= maxConf)
+      );
 
 
 
@@ -228,21 +202,17 @@ export class DocumentIntelController {
 
       const algoliaService = new AlgoliaService();
 
-      // Get all documents and tickets for the workspace
+      // Workspace-scoped at Algolia query level
       const [docs, tickets] = await Promise.all([
-        algoliaService.searchDocuments('', undefined),
-        algoliaService.searchTickets(''),
+        algoliaService.searchDocuments('', undefined, workspace_id),
+        algoliaService.searchTickets('', workspace_id),
       ]);
 
-      // Filter by workspace (server-enforced)
-      const workspaceDocs = (docs as any[]).filter(doc => doc.workspace_id === workspace_id);
-      const workspaceTickets = (tickets as any[]).filter(ticket => ticket.workspace_id === workspace_id);
-
       // Extract unique values
-      const sourceTypes = [...new Set(workspaceDocs.map(doc => doc.source_type || doc.doc_type).filter(Boolean))];
-      const ticketTypes = [...new Set(workspaceTickets.map(ticket => ticket.type).filter(Boolean))];
-      const owners = [...new Set(workspaceTickets.map(ticket => ticket.assignee || ticket.assignee_role).filter(Boolean))];
-      const statuses = [...new Set(workspaceTickets.map(ticket => ticket.readiness).filter(Boolean))];
+      const sourceTypes = [...new Set((docs as any[]).map(doc => doc.source_type || doc.doc_type).filter(Boolean))];
+      const ticketTypes = [...new Set((tickets as any[]).map(ticket => ticket.type).filter(Boolean))];
+      const owners = [...new Set((tickets as any[]).map(ticket => ticket.assignee || ticket.assignee_role).filter(Boolean))];
+      const statuses = [...new Set((tickets as any[]).map(ticket => ticket.readiness).filter(Boolean))];
 
       res.json({
         sourceTypes,
@@ -265,34 +235,28 @@ export class DocumentIntelController {
 
       const algoliaService = new AlgoliaService();
 
-      // Get all documents and tickets for the workspace
+      // Workspace-scoped at Algolia query level
       const [docs, tickets] = await Promise.all([
-        algoliaService.searchDocuments('', undefined),
-        algoliaService.searchTickets(''),
+        algoliaService.searchDocuments('', undefined, workspace_id),
+        algoliaService.searchTickets('', workspace_id),
       ]);
 
-      // Filter by workspace (server-enforced)
-      const workspaceDocs = (docs as any[]).filter(doc => doc.workspace_id === workspace_id);
-      const workspaceTickets = (tickets as any[]).filter(ticket => ticket.workspace_id === workspace_id);
-
       // Delete from indices
-      if (workspaceDocs.length > 0) {
-        await algoliaService.deleteDocuments(
-          workspaceDocs.map(doc => doc.objectID)
-        );
+      if (docs.length > 0) {
+        await algoliaService.deleteDocuments(docs.map(doc => doc.objectID));
       }
 
-      if (workspaceTickets.length > 0) {
+      if (tickets.length > 0) {
         await algoliaService.deleteTickets(
-          workspaceTickets.map((ticket: any) => ticket.objectID || ticket.id)
+          (tickets as any[]).map((ticket: any) => ticket.objectID || ticket.id)
         );
       }
 
       res.json({
         success: true,
         deleted: {
-          documents: workspaceDocs.length,
-          tickets: workspaceTickets.length,
+          documents: docs.length,
+          tickets: tickets.length,
         }
       });
     } catch (error) {
@@ -313,22 +277,15 @@ export class DocumentIntelController {
         return res.status(400).json({ error: 'objectID is required' });
       }
 
-      // Get the document to verify ownership
+      // Fetch document by ID to verify ownership
       const algoliaService = new AlgoliaService();
-      const results = await algoliaService.searchDocuments('', undefined);
-      const doc = (results as any[]).find(d => d.objectID === objectID);
+      const doc = await algoliaService.getDocument(objectID);
 
       if (!doc) {
         return res.status(404).json({ error: 'Document not found' });
       }
 
-      // Verify workspace ownership
-      const docWorkspace = doc.workspace_id || '';
-      const userWorkspaceId = `user_${workspace_id}`;
-      const isOwner = docWorkspace === workspace_id || docWorkspace === userWorkspaceId || 
-                      docWorkspace === workspace_id.replace(/^user_/, '');
-
-      if (!isOwner) {
+      if (doc.workspace_id !== workspace_id) {
         return res.status(403).json({ error: 'Not authorized to delete this document' });
       }
 
@@ -354,30 +311,25 @@ export class DocumentIntelController {
       }
 
       const algoliaService = new AlgoliaService();
-      // Get the document to verify ownership
-      const results = await algoliaService.searchDocuments('', undefined);
-      const doc = (results as any[]).find(d => d.objectID === objectID);
+      // Fetch document by ID to verify ownership
+      const doc = await algoliaService.getDocument(objectID);
       if (!doc) {
         return res.status(404).json({ error: 'Document not found' });
       }
 
-      // Verify workspace ownership (remains important for security)
-      const docWorkspace = doc.workspace_id || '';
-      const userWorkspaceId = `user_${workspace_id}`;
-      const isOwner = docWorkspace === workspace_id || docWorkspace === userWorkspaceId || 
-                      docWorkspace === workspace_id.replace(/^user_/, '');
-      if (!isOwner) {
+      if (doc.workspace_id !== workspace_id) {
         return res.status(403).json({ error: 'Not authorized to update this document' });
       }
 
       // Update document in Algolia
+      const docRecord = doc as any;
       const updatedDoc = {
-        ...doc,
+        ...docRecord,
         objectID,
-        content: content !== undefined ? content : doc.content,
-        title: title !== undefined ? title : doc.title,
-        source_type: source_type !== undefined ? source_type : doc.source_type,
-        workspace_id: doc.workspace_id,
+        content: content !== undefined ? content : docRecord.content,
+        title: title !== undefined ? title : docRecord.title,
+        source_type: source_type !== undefined ? source_type : docRecord.source_type,
+        workspace_id: docRecord.workspace_id,
         timestamp: Date.now(),
       };
       await algoliaService.indexDocuments([updatedDoc]);
@@ -400,22 +352,15 @@ export class DocumentIntelController {
         return res.status(400).json({ error: 'objectID is required' });
       }
 
-      // Get the ticket to verify ownership
+      // Fetch ticket by ID to verify ownership
       const algoliaService = new AlgoliaService();
-      const results = await algoliaService.searchTickets('');
-      const ticket = (results as any[]).find(t => t.objectID === objectID);
+      const ticket = await algoliaService.getTicket(objectID);
 
       if (!ticket) {
         return res.status(404).json({ error: 'Ticket not found' });
       }
 
-      // Verify workspace ownership
-      const ticketWorkspace = ticket.workspace_id || '';
-      const userWorkspaceId = `user_${workspace_id}`;
-      const isOwner = ticketWorkspace === workspace_id || ticketWorkspace === userWorkspaceId ||
-                      ticketWorkspace === workspace_id.replace(/^user_/, '');
-
-      if (!isOwner) {
+      if ((ticket as any).workspace_id !== workspace_id) {
         return res.status(403).json({ error: 'Not authorized to delete this ticket' });
       }
 

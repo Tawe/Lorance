@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
 import { AlgoliaService } from './algolia';
 import { AgentStudioService } from './agent-studio';
@@ -47,6 +48,19 @@ const config = {
   maxQueryLength: 1000,
   useAgentStudio: AgentStudioService.isConfigured(),
 } as const;
+
+// =============================================================================
+// Rate Limiting
+// =============================================================================
+
+const llmRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  keyGenerator: (req) => (req as any).user?.uid ?? 'unauthenticated',
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again in a minute.' },
+});
 
 // =============================================================================
 // Input Validation
@@ -241,11 +255,8 @@ app.get('/api/docs/search', FirebaseAuthService.requireAuth, async (req: Request
     const docType = req.query.type as DocType | undefined;
     const workspace_id = req.user.workspace_id || `user_${req.user.uid}`;
 
-    const documents = await algoliaService.searchDocuments(query, docType);
-    const userDocuments = documents.filter(doc =>
-      doc.workspace_id === workspace_id || doc.owner_uid === req.user.uid
-    );
-    res.json({ documents: userDocuments });
+    const documents = await algoliaService.searchDocuments(query, docType, workspace_id);
+    res.json({ documents });
   } catch (error) {
     next(error);
   }
@@ -254,18 +265,9 @@ app.get('/api/docs/search', FirebaseAuthService.requireAuth, async (req: Request
 // Get all documents (requires authentication)
 app.get('/api/docs', FirebaseAuthService.requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // For now, return all documents for the user
-    // In a real implementation, you might want pagination
     const workspace_id = req.user.workspace_id || `user_${req.user.uid}`;
-    const documents = await algoliaService.searchDocuments('', undefined);
-    
-    // Filter documents by workspace_id (this is a simple implementation)
-    // In production, you'd use Algolia's built-in filtering
-    const userDocuments = documents.filter(doc => 
-      doc.workspace_id === workspace_id || doc.owner_uid === req.user.uid
-    );
-    
-    res.json({ documents: userDocuments });
+    const documents = await algoliaService.getAllDocuments(workspace_id);
+    res.json({ documents });
   } catch (error) {
     next(error);
   }
@@ -275,24 +277,22 @@ app.get('/api/docs', FirebaseAuthService.requireAuth, async (req: Request, res: 
 // Ticket Generation Route (Protected)
 // =============================================================================
 
-app.post('/api/generate-tickets', FirebaseAuthService.requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+app.post('/api/generate-tickets', FirebaseAuthService.requireAuth, llmRateLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const body = req.body as Record<string, unknown>;
     const query = validateQuery(body?.query);
     const docIds = Array.isArray(body?.doc_ids) ? (body.doc_ids as string[]) : undefined;
 
-    // Get documents - either specific ones or all, filtered by user's workspace
+    // Get documents — workspace-scoped at Algolia query level
     let documents: ProjectDocument[];
     const workspace_id = req.user.workspace_id || `user_${req.user.uid}`;
-    
+
     if (docIds && docIds.length > 0) {
       documents = await algoliaService.getDocumentsByIds(docIds);
+      // Ownership check: all fetched docs must belong to this workspace
+      documents = documents.filter(doc => doc.workspace_id === workspace_id);
     } else {
-      const allDocuments = await algoliaService.getAllDocuments();
-      // Filter by user's workspace
-      documents = allDocuments.filter(doc => 
-        doc.workspace_id === workspace_id || doc.owner_uid === req.user.uid
-      );
+      documents = await algoliaService.getAllDocuments(workspace_id);
     }
 
     if (documents.length === 0) {
@@ -451,6 +451,14 @@ app.post('/api/export/github', FirebaseAuthService.requireAuth, async (req: Requ
   } catch (error) {
     next(error);
   }
+});
+
+// =============================================================================
+// 404 Handler
+// =============================================================================
+
+app.use((_req: Request, res: Response) => {
+  res.status(404).json({ error: 'Not found' });
 });
 
 // =============================================================================

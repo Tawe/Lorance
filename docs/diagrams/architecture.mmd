@@ -1,0 +1,84 @@
+graph TB
+    subgraph Client["Browser / Client"]
+        UI_Intel["DocumentIntel UI (/)"]
+        UI_Arch["ArchitectPanel UI (/architect)"]
+    end
+
+    subgraph Frontend["Frontend - Next.js App Router (port 3000)"]
+        Rewrite["Next.js Rewrite /api/* to localhost:3001"]
+        DocIntelSvc["documentIntelService.ts"]
+        ApiClient["ApiClient / api.ts"]
+        AuthSvc["authService.ts - Firebase client SDK"]
+        WorkspaceSvc["workspaceService.ts - localStorage workspace_id"]
+    end
+
+    subgraph Backend["Backend - Express 5 + ts-node (port 3001)"]
+        Auth["FirebaseAuthService - requireAuth middleware"]
+
+        subgraph IntelRoutes["DocumentIntel Routes /api/intel"]
+            IntelCtrl["documentIntel controller"]
+            IntelAgent["DocumentIntelAgent"]
+        end
+
+        subgraph ArchRoutes["Architect Routes /api/docs and /api/generate-tickets"]
+            ArchCtrl["index.ts handlers"]
+            AgentStudio["AgentStudioService"]
+        end
+
+        subgraph ExportRoutes["Export Routes /api/export"]
+            LinearExp["Linear export"]
+            JiraExp["Jira export"]
+            GHExp["GitHub export"]
+        end
+
+        AlgoliaSvc["AlgoliaService - search and indexing"]
+        SecuritySvc["AlgoliaSecurityService - secured key and ownership"]
+        TicketVal["ticketValidator.ts - validation and repair pipeline"]
+    end
+
+    subgraph External["External Services"]
+        Firebase["Firebase Auth"]
+        AlgoliaIdx["Algolia - lorance_documents and lorance_tickets"]
+        AgentStudioAPI["Algolia Agent Studio - LLM completions"]
+        Linear["Linear"]
+        Jira["Jira"]
+        GitHub["GitHub"]
+    end
+
+    UI_Intel --> DocIntelSvc
+    UI_Arch --> ApiClient
+    UI_Intel --> AuthSvc
+    UI_Arch --> AuthSvc
+
+    DocIntelSvc --> Rewrite
+    ApiClient --> Rewrite
+    Rewrite --> Auth
+
+    Auth --> IntelCtrl
+    Auth --> ArchCtrl
+    Auth --> LinearExp
+    Auth --> JiraExp
+    Auth --> GHExp
+
+    IntelCtrl --> IntelAgent
+    IntelAgent --> AgentStudioAPI
+    IntelAgent --> AlgoliaSvc
+    IntelAgent --> TicketVal
+    IntelCtrl --> AlgoliaSvc
+
+    ArchCtrl --> AgentStudio
+    AgentStudio --> AgentStudioAPI
+    AgentStudio --> TicketVal
+    ArchCtrl --> AlgoliaSvc
+
+    LinearExp --> Linear
+    JiraExp --> Jira
+    GHExp --> GitHub
+
+    AlgoliaSvc --> AlgoliaIdx
+    SecuritySvc --> AlgoliaIdx
+
+    Auth --> Firebase
+    AuthSvc --> Firebase
+
+    WorkspaceSvc -.->|X-Workspace-ID header| Rewrite
